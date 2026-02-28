@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 import sys
 import locale  # 用于检测系统语言
+import time
 
 VERSION="v1.0.0"
 
@@ -47,7 +48,7 @@ LANG_CONFIG = {
         "refresh": "刷新资源",
         "resource_list": "资源列表",
         "redfish_resource": "Redfish 资源",
-        "json_data": "JSON 数据",
+        "json_data": "JSON 数据{}",
         "debug_log": "调试日志",
         "clear_log": "清空日志",
         "confirm": "确认",
@@ -70,7 +71,9 @@ LANG_CONFIG = {
         "no_resource_selected": "未选择资源节点，跳过加载",
         "load_resource_failed": "加载资源失败：{}",
         "invalid_url": "无效的Redfish URL格式！示例：https://192.168.1.100/redfish/v1 或 http://192.168.1.100:80/redfish/v1",
-        "auth_failed": "{}认证失败！请检查URL、账号密码或认证方式，响应状态码：{}"
+        "auth_failed": "{}认证失败！请检查URL、账号密码或认证方式，响应状态码：{}",
+        "refresh_10s": "自动刷新 10/s",
+        "refresh_10s_content": "（自动刷新 10/s）",
     },
     "en": {
         "title": "Redfish Test Tool{}",
@@ -85,7 +88,7 @@ LANG_CONFIG = {
         "refresh": "Refresh",
         "resource_list": "Resource List",
         "redfish_resource": "Redfish Resources",
-        "json_data": "JSON Data",
+        "json_data": "JSON Data{}",
         "debug_log": "Debug Log",
         "clear_log": "Clear Log",
         "confirm": "Confirm",
@@ -108,7 +111,9 @@ LANG_CONFIG = {
         "no_resource_selected": "No resource node selected, skipping loading",
         "load_resource_failed": "Failed to load resource: {}",
         "invalid_url": "Invalid Redfish URL format! Example: https://192.168.1.100/redfish/v1 or http://192.168.1.100:80/redfish/v1",
-        "auth_failed": "{} authentication failed! Please check URL, account password or authentication method, response status code: {}"
+        "auth_failed": "{} authentication failed! Please check URL, account password or authentication method, response status code: {}",
+        "refresh_10s": "refresh 10/s",
+        "refresh_10s_content": " (refresh 10/s)"
     }
 }
 
@@ -121,8 +126,7 @@ class RedfishGUIApp:
         self.current_lang = self._detect_system_language()
         # 关键修复1：lang_var 存储显示名称（中文/English），而非代码
         self.lang_var = tk.StringVar(value=self._get_lang_display_name(self.current_lang))
-        # 语言变更回调（修改为处理显示名称）
-        self.lang_var.trace('w', self._on_language_change)
+
         
         # 设置初始窗口标题
         self.root.title(LANG_CONFIG[self.current_lang]["title"].format(VERSION))
@@ -142,6 +146,7 @@ class RedfishGUIApp:
         # 初始化配置解析器
         self.config = configparser.ConfigParser()
         self.url_history = []  # 存储URL历史列表
+        self.auto_refresh_var = tk.BooleanVar()
         self._load_config()  # 加载本地配置
 
         # 配置项
@@ -158,12 +163,14 @@ class RedfishGUIApp:
         self._check_log_size()
 
         self._setup_ui()
-
+        # 语言变更回调（修改为处理显示名称）
+        self.lang_var.trace('w', self._on_language_change)
+        
     def _detect_system_language(self):
         """自动检测系统语言，返回zh或en"""
         try:
             # 获取系统默认语言
-            system_lang, _ = locale.getdefaultlocale()
+            system_lang, _ = locale.getlocale()
             self._log(f"Detected system language: {system_lang}", skip_ui=True)
             # 中文系统返回zh，其他返回en
             if system_lang and (system_lang.startswith('zh') or 'CN' in system_lang):
@@ -216,11 +223,14 @@ class RedfishGUIApp:
         # 更新资源树列标题
         self.tree.heading("#0", text=LANG_CONFIG[lang]["redfish_resource"])
         # 更新JSON数据框架标题
-        self.json_frame["text"] = LANG_CONFIG[lang]["json_data"]
+        self.json_frame["text"] = LANG_CONFIG[lang]["json_data"].format(LANG_CONFIG[self.current_lang]["refresh_10s_content"] if self.auto_refresh_var.get() else "")
         # 更新调试日志框架标题
         self.log_frame["text"] = LANG_CONFIG[lang]["debug_log"]
         # 更新清空日志按钮文本
         self.clear_log_btn["text"] = LANG_CONFIG[lang]["clear_log"]
+        # 新增：更新自动刷新复选框文本
+        if hasattr(self, 'refresh_checkbox'):
+            self.refresh_checkbox["text"] = LANG_CONFIG[lang]["refresh_10s"]
 
     def _check_log_size(self):
         """检查日志文件大小，超过阈值则重命名备份"""
@@ -280,6 +290,7 @@ class RedfishGUIApp:
         """加载本地配置文件，获取URL历史记录"""
         # 默认值
         default_url = "https://192.168.1.100/redfish/v1"
+        default_auto_refresh = False  # 默认关闭自动刷新
         
         # 清空现有历史（避免重复加载）
         self.url_history.clear()
@@ -299,13 +310,23 @@ class RedfishGUIApp:
                     # 去重（保留顺序）
                     seen = set()
                     self.url_history = [x for x in temp_history if not (x in seen or seen.add(x))]
+                    
+                # 新增：读取自动刷新状态
+                if "SETTINGS" in self.config and "auto_refresh_10s" in self.config["SETTINGS"]:
+                    self.auto_refresh_var.set(self.config["SETTINGS"]["auto_refresh_10s"].lower() == "true")
+                else:
+                    self.auto_refresh_var.set(default_auto_refresh)
+                    
                 self._log(f"Successfully loaded URL history: {self.url_history}")
+                self._log(f"Successfully loaded auto refresh status: {self.auto_refresh_var.get()}")
             except Exception as e:
                 self._log(f"Failed to load config file: {str(e)}, using default URL")
                 self.url_history = [default_url]
+                self.auto_refresh_var.set(default_auto_refresh)
         else:
             self._log("Config file does not exist, initializing default URL")
             self.url_history = [default_url]
+            self.auto_refresh_var.set(default_auto_refresh)
 
     def _save_config(self, skip_add=False):
         """
@@ -333,9 +354,17 @@ class RedfishGUIApp:
             
             # 写入配置文件（关键：覆盖式写入）
             self.config["URL_HISTORY"] = {"history_list": ",".join(self.url_history)}
+            # 新增：保存自动刷新状态
+            self.config["SETTINGS"] = {"auto_refresh_10s": str(self.auto_refresh_var.get())}
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 self.config.write(f)
+            # json_frame
+            if self.auto_refresh_var.get():
+                self.json_frame.config(text=LANG_CONFIG[self.current_lang]["json_data"].format(LANG_CONFIG[self.current_lang]["refresh_10s_content"]))
+            else:
+                self.json_frame.config(text=LANG_CONFIG[self.current_lang]["json_data"].format(""))
             self._log(f"Saved URL history to config file: {self.url_history}")
+            self._log(f"Saved auto refresh status to config file: {self.auto_refresh_var.get()}")
             
             # 强制更新下拉列表
             self.url_combobox['values'] = []  # 先清空
@@ -502,7 +531,7 @@ class RedfishGUIApp:
         json_container = ttk.Frame(right_pane)
         json_container.pack_propagate(False)
         json_container.configure(height=300)    # 最小高度300
-        self.json_frame = ttk.LabelFrame(json_container, text=LANG_CONFIG[self.current_lang]["json_data"])
+        self.json_frame = ttk.LabelFrame(json_container, text=LANG_CONFIG[self.current_lang]["json_data"].format(LANG_CONFIG[self.current_lang]["refresh_10s_content"] if self.auto_refresh_var.get() else ""))
         self.json_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         right_pane.add(json_container, weight=3)
         
@@ -525,6 +554,16 @@ class RedfishGUIApp:
         # 按钮容器（固定在主容器右下角，不受日志面板影响）
         btn_container = ttk.Frame(main_container)
         btn_container.grid(row=2, column=0, sticky="e", padx=10, pady=5)
+        
+        # 新增：refresh 10/s 复选框
+        self.refresh_checkbox = ttk.Checkbutton(
+            btn_container,
+            text=LANG_CONFIG[self.current_lang]["refresh_10s"],
+            variable=self.auto_refresh_var,
+            command=lambda: self._save_config(skip_add=True)  # 状态变化时保存配置
+        )
+        self.refresh_checkbox.pack(side=tk.RIGHT, padx=(0, 10))
+        
         # 清空日志按钮（固定尺寸，永久显示）
         self.clear_log_btn = ttk.Button(btn_container, text=LANG_CONFIG[self.current_lang]["clear_log"], 
                                        command=self._clear_all_log, width=MIN_BUTTON_WIDTH)
@@ -836,30 +875,35 @@ class RedfishGUIApp:
         def task():
             lang = self.current_lang
             try:
-                sel = self.tree.selection()
-                if not sel:
-                    self._log(LANG_CONFIG[lang]["no_resource_selected"])
-                    return
-                url = self.tree.item(sel[0], "values")[0]
-                self._log(f"Selected resource: {url}")
-                
-                self.json_text.delete(1.0, tk.END)
-                self.json_text.insert(tk.END, "Loading..." if self.current_lang == "en" else "加载中...")
-                self.root.update_idletasks()
+                while True:
+                    sel = self.tree.selection()
+                    if not sel:
+                        self._log(LANG_CONFIG[lang]["no_resource_selected"])
+                        return
+                    url = self.tree.item(sel[0], "values")[0]
+                    self._log(f"Selected resource: {url}")
+                    
+                    self.json_text.delete(1.0, tk.END)
+                    self.json_text.insert(tk.END, "Loading..." if self.current_lang == "en" else "加载中...")
+                    self.root.update_idletasks()
 
-                r = self.session.get(url, timeout=10)
-                self._log(f"Request status code for {url}: {r.status_code}")
-                
-                if r.status_code == 200:
-                    pretty_json = json.dumps(r.json(), indent=2, ensure_ascii=False)
-                    self.json_text.delete(1.0, tk.END)
-                    self.json_text.insert(tk.END, pretty_json)
-                    self._log(f"Successfully loaded JSON data for {url}, length: {len(pretty_json)}")
-                else:
-                    error_text = f"Request failed {r.status_code}\n{r.text[:500]}"
-                    self.json_text.delete(1.0, tk.END)
-                    self.json_text.insert(tk.END, error_text)
-                    self._log(f"Request failed for {url}: {error_text}")
+                    r = self.session.get(url, timeout=10)
+                    self._log(f"Request status code for {url}: {r.status_code}")
+                    
+                    if r.status_code == 200:
+                        pretty_json = json.dumps(r.json(), indent=2, ensure_ascii=False)
+                        self.json_text.delete(1.0, tk.END)
+                        self.json_text.insert(tk.END, pretty_json)
+                        self._log(f"Successfully loaded JSON data for {url}, length: {len(pretty_json)}")
+                    else:
+                        error_text = f"Request failed {r.status_code}\n{r.text[:500]}"
+                        self.json_text.delete(1.0, tk.END)
+                        self.json_text.insert(tk.END, error_text)
+                        self._log(f"Request failed for {url}: {error_text}")
+                    if self.auto_refresh_var.get():
+                        time.sleep(10)
+                    else:
+                        break
             except Exception as e:
                 error_msg = LANG_CONFIG[lang]["load_resource_failed"].format(str(e))
                 self.json_text.delete(1.0, tk.END)
