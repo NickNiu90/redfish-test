@@ -830,7 +830,8 @@ class RedfishGUIApp:
                 return
             
             data = r.json()
-            self._log(f"Successfully retrieved {absolute_url}, data length: {len(str(data))}")
+            
+            self._log(f"Successfully retrieved {absolute_url}, data length: {len(str(data))}, duration: {r.elapsed.total_seconds()}")
 
             # 处理 Members 集合
             if "Members" in data and isinstance(data["Members"], list):
@@ -883,8 +884,10 @@ class RedfishGUIApp:
                     url = self.tree.item(sel[0], "values")[0]
                     self._log(f"Selected resource: {url}")
                     
+                    self.json_text.config(state=tk.NORMAL)
                     self.json_text.delete(1.0, tk.END)
                     self.json_text.insert(tk.END, "Loading..." if self.current_lang == "en" else "加载中...")
+                    self.json_text.config(state=tk.DISABLED)
                     self.root.update_idletasks()
 
                     r = self.session.get(url, timeout=10)
@@ -892,13 +895,17 @@ class RedfishGUIApp:
                     
                     if r.status_code == 200:
                         pretty_json = json.dumps(r.json(), indent=2, ensure_ascii=False)
+                        self.json_text.config(state=tk.NORMAL)
                         self.json_text.delete(1.0, tk.END)
                         self.json_text.insert(tk.END, pretty_json)
-                        self._log(f"Successfully loaded JSON data for {url}, length: {len(pretty_json)}")
+                        self.json_text.config(state=tk.DISABLED)
+                        self._log(f"Successfully loaded JSON data for {url}, length: {len(pretty_json)}, duration: {r.elapsed.total_seconds()}")
                     else:
                         error_text = f"Request failed {r.status_code}\n{r.text[:500]}"
+                        self.json_text.config(state=tk.NORMAL)
                         self.json_text.delete(1.0, tk.END)
                         self.json_text.insert(tk.END, error_text)
+                        self.json_text.config(state=tk.DISABLED)
                         self._log(f"Request failed for {url}: {error_text}")
                     if self.auto_refresh_var.get():
                         time.sleep(10)
@@ -906,8 +913,10 @@ class RedfishGUIApp:
                         break
             except Exception as e:
                 error_msg = LANG_CONFIG[lang]["load_resource_failed"].format(str(e))
+                self.json_text.config(state=tk.NORMAL)
                 self.json_text.delete(1.0, tk.END)
                 self.json_text.insert(tk.END, error_msg)
+                self.json_text.config(state=tk.DISABLED)
                 self._log(error_msg)
 
         threading.Thread(target=task, name="SelectThread", daemon=True).start()
