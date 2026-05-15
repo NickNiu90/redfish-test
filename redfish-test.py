@@ -123,7 +123,9 @@ class RedfishGUIApp:
         
         # ========== 多语言初始化 ==========
         # 自动检测系统语言
-        self.current_lang = self._detect_system_language()
+        
+        # self.current_lang = self._detect_system_language()
+        self.current_lang = "en"
         # 关键修复1：lang_var 存储显示名称（中文/English），而非代码
         self.lang_var = tk.StringVar(value=self._get_lang_display_name(self.current_lang))
 
@@ -490,17 +492,17 @@ class RedfishGUIApp:
                                      command=self._refresh_tree, state=tk.DISABLED, width=MIN_BUTTON_WIDTH)
         self.refresh_btn.grid(row=0, column=11, padx=5, pady=5, sticky="ew")
 
-        # 语言选择下拉框
-        lang_label = ttk.Label(self.connect_frame, text="Language/语言:")
-        lang_label.grid(row=0, column=12, padx=5, pady=5, sticky="e")
-        # 关键修复3：下拉框直接绑定显示名称，不需要额外的映射变量
-        lang_combo = ttk.Combobox(self.connect_frame, textvariable=self.lang_var, 
-                                 values=["中文", "English"], width=8, state="readonly")
-        lang_combo.grid(row=0, column=13, padx=5, pady=5, sticky="ew")
-        # 设置初始值
-        lang_combo.set(self._get_lang_display_name(self.current_lang))
-        # 绑定语言选择事件（简化：直接用lang_var的trace即可，无需额外绑定）
-        lang_combo.bind("<<ComboboxSelected>>", lambda e: None)  # 空绑定，避免重复触发
+        # # 语言选择下拉框
+        # lang_label = ttk.Label(self.connect_frame, text="Language/语言:")
+        # lang_label.grid(row=0, column=12, padx=5, pady=5, sticky="e")
+        # # 关键修复3：下拉框直接绑定显示名称，不需要额外的映射变量
+        # lang_combo = ttk.Combobox(self.connect_frame, textvariable=self.lang_var, 
+        #                          values=["中文", "English"], width=8, state="readonly")
+        # lang_combo.grid(row=0, column=13, padx=5, pady=5, sticky="ew")
+        # # 设置初始值
+        # lang_combo.set(self._get_lang_display_name(self.current_lang))
+        # # 绑定语言选择事件（简化：直接用lang_var的trace即可，无需额外绑定）
+        # lang_combo.bind("<<ComboboxSelected>>", lambda e: None)  # 空绑定，避免重复触发
 
         # 2. 主区域：资源树 + JSON + 调试日志（兼容修复：移除PanedWindow的minsize参数）
         main_pane = ttk.PanedWindow(main_container, orient=tk.HORIZONTAL)
