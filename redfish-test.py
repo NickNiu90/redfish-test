@@ -731,7 +731,10 @@ class RedfishGUIApp:
             except Exception as e:
                 error_msg = LANG_CONFIG[lang]["connection_failed"].format(str(e))
                 self._log(error_msg)
-                messagebox.showerror(LANG_CONFIG[lang]["error"], error_msg)
+                if str(e).startswith("Loading"):
+                    pass
+                else:
+                    messagebox.showerror(LANG_CONFIG[lang]["error"], error_msg)
                 # 清空无效session
                 self.session = None
                 self._set_buttons(False, connect_enable=True)
