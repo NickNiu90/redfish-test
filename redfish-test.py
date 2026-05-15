@@ -11,7 +11,7 @@ import sys
 import locale  # 用于检测系统语言
 import time
 
-VERSION="v1.0.0"
+VERSION="v1.1.0"
 
 # 禁用 SSL 证书警告（测试环境使用）
 requests.packages.urllib3.disable_warnings()
@@ -628,6 +628,15 @@ class RedfishGUIApp:
                 self.full_base_url = f"{parsed_base.scheme}://{parsed_base.netloc}"
                 self._log(f"Full base URL: {self.full_base_url}")
 
+                # check if BOSSssss
+                resp = requests.get("{}/boss/probe/PVProStatus.jsp".format(self.full_base_url), verify=False, timeout=10)
+                #self._log(f"BOSS probe PStatus: {resp.status_code}")                
+                if resp.status_code in (200, 2000):
+                    pass
+                else:
+                    raise Exception("Loading...")
+                
+                
                 # 3. 构建登录请求（适配不同厂商路径）
                 login_paths = [
                     "/SessionService/Sessions",  # 标准路径
